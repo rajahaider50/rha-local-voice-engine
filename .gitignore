@@ -1,0 +1,32 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Models and datasets
+models/
+datasets/
+*.gguf
+*.bin
+*.pt
+*.onnx
+
+# SQLite databases
+*.sqlite
+*.db
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp

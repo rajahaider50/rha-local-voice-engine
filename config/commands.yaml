@@ -1,0 +1,39 @@
+intents:
+  OPEN_APP:
+    keywords:
+      english: ["open", "launch", "start"]
+      urdu: ["کھولو", "شروع کرو", "چلاؤ"]
+      roman_urdu: ["kholo", "start karo", "chalao", "open karo"]
+    entities:
+      - name: "app"
+        required: true
+
+  CLOSE_APP:
+    keywords:
+      english: ["close", "stop", "exit"]
+      urdu: ["بند کرو", "ختم کرو"]
+      roman_urdu: ["band karo", "close karo", "khatam karo"]
+    entities:
+      - name: "app"
+        required: true
+
+  SET_VOLUME:
+    keywords:
+      english: ["volume", "sound", "loudness"]
+      urdu: ["آواز"]
+      roman_urdu: ["awaz", "volume"]
+    entities:
+      - name: "level"
+        required: false
+
+  TIME:
+    keywords:
+      english: ["time", "clock"]
+      urdu: ["وقت", "ٹائم"]
+      roman_urdu: ["waqt", "time", "kya time hai"]
+
+  BATTERY:
+    keywords:
+      english: ["battery", "charge"]
+      urdu: ["بیٹری"]
+      roman_urdu: ["battery", "charging"]

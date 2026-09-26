@@ -1,0 +1,17 @@
+supported_languages:
+  - "english"
+  - "urdu"
+  - "roman_urdu"
+  - "mixed_urdu_english"
+  - "mixed_english_urdu"
+
+default: "auto"
+
+normalization_rules:
+  roman_urdu:
+    - pattern: "khol do"
+      replacement: "kholo"
+    - pattern: "kholna"
+      replacement: "kholo"
+    - pattern: "band kar do"
+      replacement: "band karo"

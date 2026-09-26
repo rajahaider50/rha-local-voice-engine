@@ -1,0 +1,36 @@
+[project]
+name = "rha-local-voice-engine"
+version = "0.1.0"
+description = "Professional 100% Local, Free & Offline AI Voice Assistant"
+authors = [
+    {name = "RHA Engineering Team"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pyaudio>=0.2.13",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "sqlite3-api>=0.0.1",
+    "pydantic>=2.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.7.0",
+    "flake8>=6.0.0",
+    "mypy>=1.4.1"
+]
+ai = [
+    "openwakeword>=0.5.1",
+    "silero-vad>=0.0.1",
+    "whisper-cpp-python>=0.1.0",
+    "llama-cpp-python>=0.2.0"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

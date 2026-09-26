@@ -1,0 +1,28 @@
+assistant:
+  name: "RHA"
+  wake_word: "RHA"
+  default_language: "auto"
+
+performance:
+  profile: "auto"
+  max_context: 2048
+  quantization: "Q4_K_M"
+
+voice:
+  sample_rate: 16000
+  channels: 1
+  chunk_size: 512
+  streaming: true
+
+privacy:
+  offline_only: true
+  allow_network_fallback: false
+
+memory:
+  enabled: true
+  db_path: "rha_memory.db"
+
+tts:
+  english: "kokoro"
+  urdu: "local_urdu_model"
+  streaming: true

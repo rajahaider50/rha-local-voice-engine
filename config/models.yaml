@@ -1,0 +1,29 @@
+wake_word:
+  model_name: "openWakeWord"
+  path: "models/wakeword/rha.onnx"
+  threshold: 0.5
+  debounce: 5
+
+vad:
+  model_name: "silero-vad"
+  path: "models/stt/silero_vad.onnx"
+  threshold: 0.5
+
+stt:
+  model_name: "whisper.cpp"
+  path: "models/stt/ggml-base.en.bin"
+  use_gpu: false
+
+llm:
+  model_name: "qwen-1.5b-chat-q4_k_m"
+  path: "models/llm/qwen-1_5b-chat-q4_k_m.gguf"
+  n_ctx: 2048
+  n_threads: 4
+
+tts_english:
+  model_name: "kokoro-82m"
+  path: "models/tts/kokoro.onnx"
+
+tts_urdu:
+  model_name: "local_urdu_tts"
+  path: "models/tts/urdu_tts.onnx"
