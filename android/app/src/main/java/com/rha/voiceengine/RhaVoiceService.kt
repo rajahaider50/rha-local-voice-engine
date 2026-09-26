@@ -42,8 +42,8 @@ class RhaVoiceService : Service() {
     }
     
     private fun sendAudioToServer(audioData: ByteArray) {
-        // Assume the Python FastAPI server is running on Termux (localhost:8000)
-        val url = "http://localhost:8000/api/v1/voice"
+        // Assume the Python FastAPI server is running on Termux (127.0.0.1:8000)
+        val url = "http://127.0.0.1:8000/api/v1/voice"
         
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
