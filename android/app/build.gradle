@@ -23,10 +23,8 @@ android {
             version "3.11"
             pip {
                 install "numpy"
-                install "pyaudio"
                 install "pyyaml"
-                // AI packages require NDK compilation, omitted for fast basic build
-                // install "whisper-cpp-python"
+                install "psutil"
             }
         }
     }
