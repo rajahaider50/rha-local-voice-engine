@@ -6,6 +6,10 @@ pkg update -y
 pkg upgrade -y
 pkg install -y python clang cmake make git libffi openssl pkg-config
 pkg install -y sqlite
+
+# Install Termux API for Android integrations (battery, volume, apps)
+pkg install -y termux-api
+
 # Audio deps
 pkg install -y pulseaudio libportaudio
 
@@ -17,9 +21,8 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Note: native dependencies like llama-cpp-python and whisper-cpp-python
-# may require specific compilation flags on Termux/ARM.
 echo "To install AI dependencies, check device RAM and run:"
 echo "CMAKE_ARGS=\"-DGGML_TERMUX=ON\" pip install llama-cpp-python"
 
 echo "Termux Setup Complete."
+echo "Make sure you install the 'Termux:API' app from F-Droid to allow the engine to control your phone!"
