@@ -10,43 +10,67 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class RhaVoiceService : Service() {
     
     private val CHANNEL_ID = "RhaVoiceChannel"
     private var wakeLock: PowerManager.WakeLock? = null
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         acquireWakeLock()
-        
-        // Initialize Python Environment
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(this))
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = createNotification()
         startForeground(1, notification)
         
-        // Launch Python RHA Engine Pipeline in a background thread
-        Thread {
-            try {
-                val py = Python.getInstance()
-                // Assumes engine/core/pipeline.py is copied to src/main/python/
-                val pipelineModule = py.getModule("engine.core.pipeline")
-                val rhaEngineClass = pipelineModule.callAttr("RHAEngine")
-                rhaEngineClass.callAttr("run")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }.start()
+        // Simulating Audio Recording and sending to FastAPI server
+        // In full production, use AudioRecord here to capture mic stream
+        sendAudioToServer(ByteArray(32000)) // Sending empty 1-second 16kHz chunk as test
 
         return START_STICKY
+    }
+    
+    private fun sendAudioToServer(audioData: ByteArray) {
+        // Assume the Python FastAPI server is running on Termux (localhost:8000)
+        val url = "http://localhost:8000/api/v1/voice"
+        
+        val requestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart(
+                "audio", "voice.wav",
+                RequestBody.create("application/octet-stream".toMediaTypeOrNull(), audioData)
+            )
+            .build()
+            
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+            
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                println("RHA Server Connection Failed: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    println("RHA Server Response: $responseBody")
+                    // Process Intent (e.g. Open App) here based on response JSON
+                }
+            }
+        })
     }
 
     private fun acquireWakeLock() {
@@ -60,8 +84,8 @@ class RhaVoiceService : Service() {
 
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("RHA Engine Active")
-            .setContentText("Listening for 'Hey RHA'...")
+            .setContentTitle("RHA Engine Connected")
+            .setContentText("Listening and streaming to Local Server...")
             .setSmallIcon(android.R.drawable.sym_def_app_icon)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

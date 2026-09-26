@@ -3,9 +3,9 @@ fastapi>=0.100.0
 uvicorn>=0.23.0
 pydantic>=2.0.0
 pyyaml>=6.0
+python-multipart>=0.0.6
 
 # Audio & Signal Processing
-pyaudio>=0.2.13
 numpy>=1.24.0
 scipy>=1.11.0
 

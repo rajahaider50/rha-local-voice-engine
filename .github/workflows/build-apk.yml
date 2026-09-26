@@ -24,14 +24,6 @@ jobs:
       with:
         gradle-version: '8.4'
 
-    - name: Prepare Python Source for Chaquopy
-      run: |
-        echo "Copying Python engine to Android assets..."
-        mkdir -p android/app/src/main/python
-        cp -r engine android/app/src/main/python/
-        cp -r config android/app/src/main/python/
-        cp requirements.txt android/app/src/main/python/
-
     - name: Build Debug APK
       working-directory: ./android
       run: gradle assembleDebug
@@ -39,5 +31,5 @@ jobs:
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: RHA-Voice-Engine-APK
+        name: RHA-Voice-Engine-Client-APK
         path: android/app/build/outputs/apk/debug/app-debug.apk
