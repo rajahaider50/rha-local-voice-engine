@@ -12,8 +12,8 @@ scipy>=1.11.0
 # AI Models & Inferencing (To be finalized based on device)
 torch>=2.0.0
 torchaudio>=2.0.0
-# openwakeword>=0.5.1
-# onnxruntime>=1.15.0
+openwakeword>=0.5.1
+onnxruntime>=1.15.0
 # llama-cpp-python>=0.2.0
 # whisper-cpp-python>=0.1.0
 
