@@ -62,7 +62,7 @@ class RhaVoiceService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("RHA Engine Active")
             .setContentText("Listening for 'Hey RHA'...")
-            //.setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(android.R.drawable.sym_def_app_icon)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
