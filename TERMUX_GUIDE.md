@@ -1,31 +1,31 @@
-# RHA Local Voice Engine: Termux Setup & Testing Guide
+# RHA Local Voice Engine: Complete Termux Setup & Testing Guide
 
-This guide provides step-by-step instructions for deploying and testing the **RHA Local Voice Engine** directly on your Android phone using Termux. 
+This guide provides step-by-step instructions for deploying and running the **100% Offline RHA Voice Engine** directly on your Android phone using Termux. 
 
-By following this guide, you will have a local AI daemon running in the background of your phone that can execute Android commands offline.
+By following this guide, your phone will act as a fully autonomous AI voice assistant without needing the cloud.
 
 ---
 
-## 🛑 Prerequisites
+## 🛑 Prerequisites: Essential Android Apps
 
 Before touching the terminal, you must install the correct Android apps. **Do NOT use the Google Play Store versions of Termux**, as they are outdated and broken.
 
 1. Download **F-Droid** (an open-source app store) from [f-droid.org](https://f-droid.org/).
 2. Open F-Droid and search for **Termux**. Install it.
 3. Search for **Termux:API** in F-Droid. Install it.
-   - *Why?* The Termux:API app bridges the terminal to your Android system, allowing the RHA engine to open apps, check battery, change volume, and toggle the flashlight.
+   - *Why?* The Termux:API app bridges the terminal to your Android system, allowing the RHA engine to actually execute commands like opening YouTube, checking your battery, and controlling your volume.
 
 ---
 
 ## 🛠️ Step 1: Initial Termux Configuration
 
-Open the **Termux** app on your phone and run the following commands to prepare your storage and ensure everything is up to date:
+Open the **Termux** app on your phone. We need to prepare your storage and ensure core Linux packages are up to date.
 
 ```bash
-# 1. Grant storage permissions to Termux (a popup will appear on your phone, click "Allow")
+# 1. Grant storage permissions (a popup will appear on your phone, click "Allow")
 termux-setup-storage
 
-# 2. Update all existing packages
+# 2. Update all existing packages (hit 'y' or enter if it asks you during the process)
 pkg update -y && pkg upgrade -y
 
 # 3. Install git to download the repository
@@ -34,12 +34,12 @@ pkg install git -y
 
 ---
 
-## 📥 Step 2: Download the Engine
+## 📥 Step 2: Download the RHA Engine
 
-Clone the repository from GitHub to your phone:
+Clone your completed repository from GitHub to your phone:
 
 ```bash
-# Clone your repository
+# Clone the repository
 git clone https://github.com/rajahaider50/rha-local-voice-engine.git
 
 # Navigate into the project folder
@@ -48,71 +48,64 @@ cd rha-local-voice-engine
 
 ---
 
-## ⚙️ Step 3: Run the Setup Script
+## ⚙️ Step 3: Run the Automated Setup
 
-We have provided an automated script that installs Python, audio dependencies, Termux API packages, and sets up a virtual environment.
+We have provided a script that installs Python, audio dependencies, Termux API packages, and sets up an isolated virtual environment.
 
 ```bash
 # Run the automated setup script
 bash scripts/setup_termux.sh
-```
 
-*Note: This might take a few minutes depending on your phone's processor and internet connection.*
+# Activate the Python virtual environment
+source venv/bin/activate
+```
+*Note: This might take a few minutes depending on your phone's processor.*
 
 ---
 
-## 🚀 Step 4: Start the RHA Background Service
+## 🧠 Step 4: Download the Offline AI Models
 
-The RHA Engine runs as a lightweight, local API server (daemon). We've provided scripts to manage it so Android doesn't kill it when you turn off your screen.
-
-To start the engine:
+Because the engine is 100% offline, you need to download the AI "brains" to your phone's storage. We wrote an automated script for this.
 
 ```bash
-# Starts the engine and acquires a CPU wake-lock
+# Downloads Whisper.cpp (STT) and Qwen (LLM) models
+python scripts/download_models.py
+```
+*(Ensure you are on Wi-Fi. This will download ~1.3GB of highly optimized AI models directly to your `models/` directory).*
+
+---
+
+## 🚀 Step 5: Start the Master Voice Assistant
+
+Everything is now ready. You can start the master pipeline which controls the Wake Word, the Microphone, the VAD, the Intent Router, and the LLM.
+
+```bash
+# Ensure you are still in the venv
+source venv/bin/activate
+
+# Start the full engine
+python engine/core/pipeline.py
+```
+
+### How to use it:
+1. The terminal will print `Waiting for wake word...`
+2. Say **"Hey Jarvis"** loudly into your phone.
+3. The engine will beep/print `WAKE WORD DETECTED!` and switch to **Listening Mode**.
+4. Say a command in Roman Urdu (e.g., *"YouTube kholo"*) or ask a question in English (*"What is a black hole?"*).
+5. The engine will stop listening when you pause, process your speech offline, and instantly execute the action or reply with the AI!
+
+---
+
+## 🔄 Optional: Running as a Background Daemon
+
+If you want the assistant to listen for the wake word even while your phone screen is off, you can run it as a background service:
+
+```bash
+# Starts the engine in the background and acquires a CPU wake-lock
 ./scripts/start_termux_service.sh
 ```
 
-**How to know it's working?**
-It will output: `RHA Service started in the background (PID: XXXX)`.
-All logs are saved to `rha_service.log`. You can view them anytime by running:
-`cat rha_service.log`
-
----
-
-## 🧪 Step 5: Testing the Intent Engine (CLI)
-
-Because the microphone and AI models (Whisper/Qwen) are scheduled for later phases, we have built a **Terminal CLI** so you can immediately test the intent recognition and language routing logic.
-
-With the background service running, launch the CLI:
-
-```bash
-./rha_cli.py
-```
-
-### Example Test Cases to Try:
-
-1. **Test Roman Urdu Application Launching:**
-   - Type: `youtube kholo`
-   - *Expected Intent: OPEN_APP*
-   - *Expected Language: roman_urdu*
-
-2. **Test English Conversational Fallback:**
-   - Type: `explain black holes in simple words`
-   - *Expected Intent: CONVERSATIONAL*
-   - *Expected Language: english*
-
-3. **Test Native System Commands:**
-   - Type: `open calculator`
-   - *Expected Intent: OPEN_APP*
-
-Type `exit` to close the CLI when you are done.
-
----
-
-## 🛑 Step 6: Stopping the Service
-
-When you are done testing, you must stop the background service to release the CPU wake-lock and save your phone's battery.
-
+To stop it and save battery:
 ```bash
 ./scripts/stop_termux_service.sh
 ```
@@ -123,11 +116,12 @@ When you are done testing, you must stop the background service to release the C
 
 **Error: "termux-open: command not found" or "battery status fails"**
 - Ensure you installed the `Termux:API` app from F-Droid.
-- Ensure you ran `pkg install termux-api` (this is handled automatically by `setup_termux.sh`).
+- Run `pkg install termux-api` manually in Termux.
 
-**Error: "Error connecting to RHA local service: Connection refused"**
-- The background daemon is not running. Run `./scripts/start_termux_service.sh` again and check `cat rha_service.log` for Python errors.
+**Error: "ALSA lib pcm.c... Unknown PCM" or PyAudio crashes**
+- Termux handles audio differently than a desktop Linux. Ensure you accepted microphone permissions. 
+- You may need to start pulseaudio: `pulseaudio --start`
 
-**Cannot install `llama-cpp-python` or `whisper-cpp-python`?**
-- Mobile compilation requires specific flags. When we reach the AI deployment phase, you will use:
-  `CMAKE_ARGS="-DGGML_TERMUX=ON" pip install llama-cpp-python`
+**Cannot install `llama-cpp-python` or `whisper-cpp-python` during pip install?**
+- Mobile compilation requires specific CMake flags. Ensure you run:
+  `CMAKE_ARGS="-DGGML_TERMUX=ON" pip install llama-cpp-python whisper-cpp-python`
