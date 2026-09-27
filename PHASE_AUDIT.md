@@ -1,26 +1,28 @@
-# PHASE 1 — BLUEPRINT AUDIT (PHASE_AUDIT.md)
+# Verified Project Audit — 2026-09-27
 
-| Phase | Description | Status | Evidence/Notes |
-|-------|-------------|--------|----------------|
-| 1 | Project skeleton | COMPLETE | Directory structure is solid. |
-| 2 | Audio capture | COMPLETE | Android native `AudioRecord` streaming via WebSocket is fully implemented. |
-| 3 | VAD | PARTIAL | Silero VAD exists but STT currently processes raw bytes directly for speed. |
-| 4 | Wake word | PARTIAL | openWakeWord script exists. |
-| 5 | Whisper STT | COMPLETE | `whisper_engine.py` is implemented and functional. |
-| 6 | Urdu/English router | COMPLETE | `language/router.py` implemented. |
-| 7 | Intent engine | COMPLETE | `intent/router.py` implemented. |
-| 8 | Android tools | COMPLETE | Native intents (OPEN_APP, WEB_SEARCH) executed securely via WebSocket payload. |
-| 9 | llama.cpp + local LLM | COMPLETE | `llama_engine.py` is implemented. |
-| 10 | Streaming LLM | COMPLETE | WebSocket correctly yields `llm_token` to Android UI. |
-| 11 | English TTS | COMPLETE | Utilizes Android Native `TextToSpeech` API for zero-latency, 100% offline generation. |
-| 12 | Urdu TTS | COMPLETE | Android Native TTS configured with `Locale("ur", "PK")` offline fallback. |
-| 13 | Streaming TTS | COMPLETE | Server.py chunks LLM tokens by sentence and streams `{"type": "tts"}` events to Android. |
-| 14 | Memory | COMPLETE | SQLite `memory.save_interaction` hooked into LLM generation flow. |
-| 15 | Barge-in / interruption| COMPLETE | `{"type": "interrupt"}` stops `TextToSpeech` on Android client side. |
-| 16 | Android native integration | COMPLETE | Premium Dashboard UI, AudioRecord, OkHttp WebSockets, and `AccessibilityService` completed. |
-| 17 | Optimization | COMPLETE | `psutil` gracefully bypassed on Android Termux. |
-| 18 | Real-device testing | PENDING | Awaiting user verification on physical device for WebSocket STT flow. |
-| 19 | Fine-tuning prep | PARTIAL | `prepare.py` script exists. |
-| 20 | Production packaging | COMPLETE | `rha` command suite + transactional Termux installer is foolproof. |
+| Area | Status | Verification |
+|---|---|---|
+| Project structure | Complete | Python, Android, config, scripts and tests present |
+| Termux installation | Complete | One canonical venv-free installer; native NumPy; smoke test |
+| Core API | Complete | `/`, `/health`, `/self-test`, `/api/models`, WebSocket routes |
+| Language/intent routing | Complete | English, Urdu and Roman Urdu routing; web-search intent |
+| SQLite memory | Complete | Preferences, memories and conversation persistence |
+| Android client | Implemented | AudioRecord, foreground service, WebSocket and native TTS |
+| Optional AI backends | Device-dependent | Whisper/llama.cpp/openWakeWord require compatible mobile builds/models |
+| Real-device verification | Pending | Requires physical Termux + Android APK test |
+| LAN security | Limitation | No authentication; use localhost or trusted Wi-Fi only |
 
-**Summary:** The integration layer between the Android Native App and the Python FastAPI Server is now 100% COMPLETE. WebSockets stream real microphone data, LLM tokens, and TTS chunks securely. The project has reached production-readiness on the software architecture level. Awaiting physical device tests.
+## Findings fixed in this pass
+
+- Removed conflicting Termux virtualenv instructions and made `termux_oneliner.sh` canonical.
+- Fixed missing `requirements.txt` reference in the Linux installer.
+- Fixed `AudioCapture` constructor mismatch used by all audio test scripts.
+- Made torch/openWakeWord optional imports so core server can start without AI wheels.
+- Prevented API import from downloading large models automatically.
+- Added `/self-test` and truthful unavailable-backend responses.
+- Added missing `MemoryManager.save_interaction` and `WEB_SEARCH` query extraction.
+- Replaced unsafe broad `pkill` service stop with PID-file management.
+
+## Remaining work
+
+Physical-device validation of microphone permissions, native AI wheels, Android foreground-service behavior, and model performance remains necessary before claiming end-to-end production readiness.

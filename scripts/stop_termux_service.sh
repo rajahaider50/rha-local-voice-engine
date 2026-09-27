@@ -1,10 +1,5 @@
-#!/bin/bash
-echo "Stopping RHA Local Voice Engine Termux Service..."
-
-# Find and kill the uvicorn process running our app
-pkill -f "uvicorn api.server:app"
-
-# Release the wakelock
-termux-wake-unlock
-
-echo "Service stopped and wakelock released."
+#!/data/data/com.termux/files/usr/bin/bash
+set -Eeuo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+scripts/rha_cmd.sh stop
+command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock || true

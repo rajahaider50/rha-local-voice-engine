@@ -38,13 +38,15 @@ class IntentRouter:
                 
             for kw in keywords:
                 if kw in normalized_text:
-                    # Very basic entity extraction for OPEN_APP (e.g. "youtube kholo")
                     params = {}
                     if intent_name == "OPEN_APP":
-                        # Strip the keyword to try and find the app name
                         app_name = normalized_text.replace(kw, "").strip()
                         if app_name:
                             params["app"] = app_name
+                    elif intent_name == "WEB_SEARCH":
+                        query = normalized_text.replace(kw, "").strip()
+                        if query:
+                            params["query"] = query
                             
                     return intent_name, params, 0.95
         

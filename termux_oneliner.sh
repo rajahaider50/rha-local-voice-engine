@@ -1,95 +1,67 @@
-#!/bin/bash
-# Strict error handling
+#!/data/data/com.termux/files/usr/bin/bash
+# RHA Local Voice Engine - one-command Termux installer
+# Usage: curl -fsSL https://raw.githubusercontent.com/rajahaider50/rha-local-voice-engine/main/termux_oneliner.sh | bash
 set -Eeuo pipefail
 
-# Error trap function
-function error_handler() {
-    local line_no=$1
-    local err_code=$2
-    echo "============================================="
-    echo " ❌ INSTALLATION FAILED! "
-    echo " Error on line $line_no (Exit code: $err_code)"
-    echo " The installation could not complete."
-    echo "============================================="
-    exit $err_code
+REPO_URL="${RHA_REPO_URL:-https://github.com/rajahaider50/rha-local-voice-engine.git}"
+RHA_DIR="${RHA_DIR:-$HOME/rha-local-voice-engine}"
+
+fail() { printf '\n[RHA] ERROR: %s\n' "$*" >&2; exit 1; }
+command -v pkg >/dev/null 2>&1 || fail "یہ installer صرف Termux میں چلائیں۔"
+
+printf '\n=== RHA Local Voice Engine — Termux setup ===\n'
+termux-setup-storage >/dev/null 2>&1 || true
+pkg update -y
+pkg install -y git curl python clang cmake make pkg-config libffi openssl sqlite pulseaudio termux-api python-numpy
+
+if [ -d "$RHA_DIR/.git" ]; then
+  git -C "$RHA_DIR" fetch --depth=1 origin main
+  git -C "$RHA_DIR" reset --hard origin/main
+else
+  rm -rf "$RHA_DIR"
+  git clone --depth=1 "$REPO_URL" "$RHA_DIR"
+fi
+cd "$RHA_DIR"
+
+# Termux uses native packages (especially numpy); do not create a venv.
+pip_install() {
+  python -m pip install --disable-pip-version-check --break-system-packages "$@" 2>/dev/null \
+    || python -m pip install --disable-pip-version-check "$@"
 }
-trap 'error_handler ${LINENO} $?' ERR
+pip_install -r requirements-core.txt
 
-echo "============================================="
-echo " RHA Local Voice Engine - Termux Installer   "
-echo "============================================="
-
-echo "[1/7] System Checks..."
-if [ -z "${PREFIX:-}" ]; then
-    echo "Warning: Not running in Termux. Proceeding with standard Linux setup..."
-else
-    echo "Termux environment detected."
-    # Request storage only if not already granted
-    if [ ! -d ~/storage ]; then
-        echo "Requesting storage permission..."
-        termux-setup-storage
-        sleep 2
-    fi
+mkdir -p models/stt models/llm
+if [ "${RHA_DOWNLOAD_MODELS:-1}" = "1" ] && [ ! -s models/stt/ggml-base.bin ]; then
+  echo "[RHA] Downloading multilingual Whisper base model (~142 MB)..."
+  curl -fL --retry 3 --continue-at - \
+    -o models/stt/ggml-base.bin \
+    https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 fi
 
-echo "[2/7] Installing OS dependencies..."
-if [ -n "${PREFIX:-}" ]; then
-    pkg update -y
-    pkg install -y git python clang cmake make libffi openssl pkg-config sqlite termux-api pulseaudio python-numpy
-fi
+install -m 755 scripts/rha_cmd.sh "$PREFIX/bin/rha"
+for command_name in start stop update repair status logs models doctor; do
+  ln -sf "$PREFIX/bin/rha" "$PREFIX/bin/rha-$command_name"
+done
 
-echo "[3/7] Fetching Source Code..."
-if [ ! -d "$HOME/rha-local-voice-engine" ]; then
-    cd $HOME
-    git clone https://github.com/rajahaider50/rha-local-voice-engine.git
-    cd rha-local-voice-engine
-else
-    echo "Repository exists. Updating..."
-    cd $HOME/rha-local-voice-engine
-    git fetch
-    git reset --hard origin/main
-fi
+python -m compileall -q api engine || fail "Python syntax check ناکام ہوئی۔"
+python - <<'PY'
+from engine.language.router import LanguageRouter
+from engine.intent.router import IntentRouter
+lang, _, text = LanguageRouter().detect_and_normalize('youtube kholo')
+intent, params, _ = IntentRouter().route_intent(text, lang)
+assert intent == 'OPEN_APP' and params.get('app') == 'youtube'
+print('[RHA] Smoke test: PASS')
+PY
 
-echo "[4/7] Setting up Python Environment..."
-pip install --upgrade pip --break-system-packages
+cat <<EOF
 
-echo "[5/7] Installing Core Packages..."
-pip install -r requirements-core.txt --break-system-packages
+[RHA] Installation complete.
+  Project: $RHA_DIR
+  Start:   rha start
+  Status:  rha status
+  Doctor:  rha doctor
+  Stop:    rha stop
 
-echo "[6/7] Verifying Dependencies..."
-python -c "import fastapi" || { echo "FastAPI failed to install!"; exit 1; }
-python -c "import uvicorn" || { echo "Uvicorn failed to install!"; exit 1; }
-python -c "import multipart" || { echo "python-multipart failed to install!"; exit 1; }
-python -c "import numpy" || { echo "Numpy failed to install!"; exit 1; }
-echo "Core dependencies verified successfully."
-
-echo "[7/7] Downloading AI Models..."
-mkdir -p models/stt
-if [ ! -f "models/stt/ggml-tiny.en.bin" ]; then
-    echo "Downloading Whisper Tiny (39MB)..."
-    curl -L -o models/stt/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
-else
-    echo "Whisper Tiny STT model already exists."
-fi
-
-echo "[8/8] Installing Global Commands..."
-if [ -n "${PREFIX:-}" ]; then
-    cp scripts/rha_cmd.sh $PREFIX/bin/rha
-    chmod +x $PREFIX/bin/rha
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-start
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-stop
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-status
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-update
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-repair
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-logs
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-models
-    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-doctor
-else
-    sudo cp scripts/rha_cmd.sh /usr/local/bin/rha
-    sudo chmod +x /usr/local/bin/rha
-fi
-
-echo "============================================="
-echo " ✅ RHA INSTALLATION SUCCESSFUL! "
-echo " You can now start the server by typing: rha"
-echo "============================================="
+AI backends (llama.cpp/whisper-cpp) are optional native builds on Termux.
+Set RHA_DOWNLOAD_MODELS=0 to skip model download and run the core server first.
+EOF

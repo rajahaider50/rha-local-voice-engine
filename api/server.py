@@ -1,65 +1,102 @@
-import sys
+"""RHA local API server.
+
+The HTTP server is deliberately usable without optional AI wheels.  Termux can
+start it immediately, while `/self-test` reports which optional backends are
+available instead of silently pretending to process audio.
+"""
+
+import asyncio
 import os
-import io
-import wave
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks, WebSocket, WebSocketDisconnect
+import sys
+from typing import Any
+
+from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 import uvicorn
-import json
-import asyncio
 
-# Add project root to path
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+os.chdir(PROJECT_ROOT)
 
-# We will import models dynamically to prevent startup crashes if dependencies are missing
+app = FastAPI(title="RHA Voice Engine API", version="3.1.0")
+stt = lang = intent = llm = memory = None
+load_error: str | None = None
+
 try:
     from engine.stt.whisper_engine import WhisperEngine
-    from engine.language.router import LanguageRouter
-    from engine.intent.router import IntentRouter
-    from engine.llm.llama_engine import LlamaEngine
-    from engine.memory.manager import MemoryManager
-    MODELS_IMPORT_SUCCESS = True
-except Exception as e:
-    print(f"[Server Warning] Could not import AI models (missing dependencies like numpy): {e}")
-    MODELS_IMPORT_SUCCESS = False
-
-app = FastAPI(title="RHA Voice Engine API")
-
-print("[Server] Loading AI Models... (This might take a moment)")
+    stt = WhisperEngine(download_if_missing=False)
+except Exception as exc:
+    load_error = f"STT: {exc}"
+    print(f"[Server] STT unavailable: {exc}")
 try:
-    if MODELS_IMPORT_SUCCESS:
-        stt = WhisperEngine()
-        lang = LanguageRouter()
-        intent = IntentRouter()
-        llm = LlamaEngine()
-        memory = MemoryManager()
-        print("[Server] All models loaded. Server Ready!")
-    else:
-        raise Exception("Model modules were not imported.")
-except Exception as e:
-    print(f"[Server Warning] Failed to load some AI models natively: {e}")
-    print("[Server] Server is running in MOCK mode until dependencies are fixed.")
-    stt, lang, intent, llm, memory = None, None, None, None, None
+    from engine.language.router import LanguageRouter
+    lang = LanguageRouter()
+except Exception as exc:
+    load_error = f"{load_error or ''} Language: {exc}".strip()
+try:
+    from engine.intent.router import IntentRouter
+    intent = IntentRouter()
+except Exception as exc:
+    load_error = f"{load_error or ''} Intent: {exc}".strip()
+try:
+    from engine.llm.llama_engine import LlamaEngine
+    llm = LlamaEngine(download_if_missing=False)
+except Exception as exc:
+    load_error = f"{load_error or ''} LLM: {exc}".strip()
+try:
+    from engine.memory.manager import MemoryManager
+    memory = MemoryManager()
+except Exception as exc:
+    load_error = f"{load_error or ''} Memory: {exc}".strip()
+
+
+def backend_status() -> dict[str, Any]:
+    return {
+        "stt": "ready" if stt and getattr(stt, "model", None) else "missing",
+        "llm": "ready" if llm and getattr(llm, "model", None) else "missing",
+        "intent": "ready" if intent else "missing",
+        "memory": "ready" if memory else "missing",
+        "error": load_error,
+    }
+
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "RHA Voice Server is actively running!", "endpoints": ["/ws/voice", "/health", "/api/models"]}
+    return {"status": "online", "service": "RHA Local Voice Engine", "endpoints": ["/health", "/self-test", "/api/models", "/ws/voice"]}
+
 
 @app.get("/health")
 def read_health():
-    return {"status": "pass", "version": "2.1-Alpha", "engine": "RHA Local Voice Assistant"}
+    status = backend_status()
+    return {"status": "pass", "server": "online", "backends": status}
+
+
+@app.get("/self-test")
+def self_test():
+    status = backend_status()
+    ai_ready = status["stt"] == "ready" and status["llm"] == "ready"
+    return {"status": "pass" if ai_ready else "degraded", "checks": status}
+
 
 @app.get("/api/models")
 def get_models():
+    status = backend_status()
     return {
-        "stt": {"name": "Whisper tiny.en", "status": "installed" if stt else "missing", "size": "39MB"},
-        "llm": {"name": "Qwen 1.5B", "status": "installed" if llm else "missing", "size": "890MB"},
-        "tts": {"name": "Kokoro", "status": "missing", "size": "unknown"}
+        "stt": {"name": "Whisper multilingual", "status": status["stt"]},
+        "llm": {"name": "Qwen 1.8B GGUF", "status": status["llm"]},
+        "tts": {"name": "Termux/Android native TTS", "status": "client-side"},
     }
+
 
 @app.post("/api/v1/voice")
 async def process_voice(audio: UploadFile = File(...)):
-    return {"status": "success", "reply": "HTTP endpoint deprecated. Please use WebSocket."}
+    data = await audio.read()
+    if not stt or not getattr(stt, "model", None):
+        return JSONResponse(status_code=503, content={"status": "unavailable", "message": "Whisper backend is not installed or model is missing. See /self-test."})
+    text = stt.transcribe_audio(data)
+    return {"status": "success", "text": text}
+
 
 @app.websocket("/ws/voice")
 async def websocket_endpoint(websocket: WebSocket):
@@ -68,69 +105,48 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_bytes()
             await websocket.send_json({"type": "state", "value": "PROCESSING"})
-            
-            if stt and intent:
-                # 2. Speech to Text
-                text = stt.transcribe_audio(data)
-                if not text:
-                    await websocket.send_json({"type": "error", "message": "No speech detected."})
-                    await websocket.send_json({"type": "state", "value": "IDLE"})
-                    continue
-                    
-                await websocket.send_json({"type": "transcription", "text": text})
-                
-                # 3. Intent Routing
-                lang_detected, conf, norm = lang.detect_and_normalize(text)
-                action, params, i_conf = intent.route_intent(norm, lang_detected)
-                
-                if action == "OPEN_APP":
-                    await websocket.send_json({"type": "state", "value": "EXECUTING"})
-                    await websocket.send_json({"type": "command", "action": "OPEN_APP", "package": params.get("app", "")})
-                elif action == "WEB_SEARCH":
-                    await websocket.send_json({"type": "state", "value": "EXECUTING"})
-                    await websocket.send_json({"type": "command", "action": "WEB_SEARCH", "query": params.get("query", "")})
-                else:
-                    await websocket.send_json({"type": "state", "value": "THINKING"})
-                    # Conversational LLM streaming
-                    if llm:
-                        context = memory.retrieve_relevant_context(norm) if memory else ""
-                        prompt = f"{context}\nUser: {norm}" if context else norm
-                        
-                        full_reply = ""
-                        sentence_buffer = ""
-                        for token in llm.generate_stream(prompt):
-                            full_reply += token
-                            sentence_buffer += token
-                            # Stream partial text back to Android
-                            await websocket.send_json({"type": "llm_token", "text": token})
-                            
-                            # Simple sentence chunking for TTS
-                            if any(punct in token for punct in [".", "?", "!", "\n", "۔"]):
-                                if sentence_buffer.strip():
-                                    await websocket.send_json({"type": "tts", "text": sentence_buffer.strip()})
-                                sentence_buffer = ""
-                        
-                        if sentence_buffer.strip():
-                            await websocket.send_json({"type": "tts", "text": sentence_buffer.strip()})
-                            
-                        # Save memory
-                        if memory:
-                            memory.save_interaction(norm, full_reply)
-                    else:
-                        await websocket.send_json({"type": "llm_token", "text": "LLM module offline."})
+            if not stt or not getattr(stt, "model", None) or not intent:
+                await websocket.send_json({"type": "error", "message": "AI backend unavailable. Run rha doctor and install a model/backend."})
+                await websocket.send_json({"type": "state", "value": "IDLE"})
+                continue
+
+            text = stt.transcribe_audio(data)
+            if not text:
+                await websocket.send_json({"type": "error", "message": "No speech detected."})
+                await websocket.send_json({"type": "state", "value": "IDLE"})
+                continue
+            await websocket.send_json({"type": "transcription", "text": text})
+
+            language, _, normalized = lang.detect_and_normalize(text)
+            action, params, _ = intent.route_intent(normalized, language)
+            if action == "OPEN_APP":
+                await websocket.send_json({"type": "command", "action": action, "package": params.get("app", "")})
+            elif action == "WEB_SEARCH":
+                await websocket.send_json({"type": "command", "action": action, "query": params.get("query", normalized)})
+            elif llm and getattr(llm, "model", None):
+                await websocket.send_json({"type": "state", "value": "THINKING"})
+                context = memory.retrieve_relevant_context(normalized) if memory else ""
+                full_reply = ""
+                buffer = ""
+                for token in llm.generate_stream(f"{context}\nUser: {normalized}" if context else normalized):
+                    full_reply += token
+                    buffer += token
+                    await websocket.send_json({"type": "llm_token", "text": token})
+                    if any(mark in token for mark in [".", "?", "!", "\n", "۔"]):
+                        await websocket.send_json({"type": "tts", "text": buffer.strip()})
+                        buffer = ""
+                if buffer.strip():
+                    await websocket.send_json({"type": "tts", "text": buffer.strip()})
+                if memory:
+                    memory.save_interaction(normalized, full_reply)
             else:
-                # Fallback MOCK if AI models failed to load due to missing dependencies
-                await asyncio.sleep(0.5)
-                await websocket.send_json({"type": "transcription", "text": "Mock: Opening YouTube"})
-                await websocket.send_json({"type": "state", "value": "EXECUTING"})
-                await websocket.send_json({"type": "command", "action": "OPEN_APP", "package": "com.google.android.youtube"})
-                
+                await websocket.send_json({"type": "llm_token", "text": "LLM backend is not installed."})
             await websocket.send_json({"type": "state", "value": "IDLE"})
-            
     except WebSocketDisconnect:
         print("[Server] Client disconnected")
-    except Exception as e:
-        print(f"[Error] WebSocket error: {e}")
+    except Exception as exc:
+        print(f"[Server] WebSocket error: {exc}")
+
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("RHA_PORT", "8000")))

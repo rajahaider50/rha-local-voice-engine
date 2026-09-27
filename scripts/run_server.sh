@@ -1,20 +1,12 @@
-#!/bin/bash
-
-echo "Starting RHA Local Development Server..."
-
-# Ensure we are in the project root
-cd "$(dirname "$0")/.." || exit
-
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo "Virtual environment not found. Running install script..."
-    bash scripts/install.sh
+#!/usr/bin/env bash
+set -Eeuo pipefail
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if [ -n "${PREFIX:-}" ]; then
+  python -c 'import fastapi, uvicorn' 2>/dev/null || bash scripts/setup_termux.sh
+else
+  [ -x venv/bin/python ] || bash scripts/install.sh
+  source venv/bin/activate
 fi
-
-# Activate virtual environment
-source venv/bin/activate
-
-# Start the FastAPI server using Uvicorn
-echo "Server will be available at: http://localhost:8000"
-echo "API Docs will be available at: http://localhost:8000/docs"
-python -m uvicorn api.server:app --host 0.0.0.0 --port 8000 --reload
+args=(--host "${RHA_HOST:-0.0.0.0}" --port "${RHA_PORT:-8000}")
+[ -z "${RHA_RELOAD:-}" ] || args+=(--reload)
+exec python -m uvicorn api.server:app "${args[@]}"

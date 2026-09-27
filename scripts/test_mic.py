@@ -2,7 +2,6 @@
 import sys
 import os
 import wave
-import pyaudio
 
 # Add the project root to the python path so we can import engine
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -10,6 +9,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from engine.audio.capture import AudioCapture
 
 def main():
+    try:
+        import pyaudio
+    except ImportError:
+        print("PyAudio is not installed; install a Termux-compatible audio backend first.")
+        return 1
     print("=======================================")
     print(" RHA Audio Capture Test (Phase 2)      ")
     print("=======================================")
@@ -51,6 +55,7 @@ def main():
         wf.writeframes(b''.join(frames))
     pa.terminate()
     print(f"Success! You can listen to {output_filename} to verify audio quality.")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

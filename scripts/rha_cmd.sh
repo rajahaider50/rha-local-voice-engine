@@ -1,128 +1,34 @@
-#!/bin/bash
-# RHA Local Voice Engine - Global Command System
+#!/data/data/com.termux/files/usr/bin/bash
+set -Eeuo pipefail
+RHA_DIR="${RHA_DIR:-$HOME/rha-local-voice-engine}"
+PID_FILE="$RHA_DIR/.rha-server.pid"
 
-RHA_DIR="$HOME/rha-local-voice-engine"
+need_project() { [ -d "$RHA_DIR" ] || { echo "Project not found: $RHA_DIR. Run the installer first." >&2; exit 1; }; }
+server_pid() { [ -s "$PID_FILE" ] && cat "$PID_FILE" || true; }
 
-function show_help() {
-    echo "=========================================="
-    echo "  RHA Local Voice Engine - Command Suite  "
-    echo "=========================================="
-    echo "Commands:"
-    echo "  rha-start    - Start the RHA AI Server"
-    echo "  rha-stop     - Stop the RHA AI Server"
-    echo "  rha-status   - Check server and model status"
-    echo "  rha-update   - Safely update source code"
-    echo "  rha-repair   - Fix broken dependencies"
-    echo "  rha          - Interactive dashboard/start"
-    echo "=========================================="
+start_server() {
+  need_project; cd "$RHA_DIR"
+  if pid=$(server_pid) && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then echo "RHA already running (PID $pid)"; return; fi
+  python -c 'import fastapi, uvicorn' 2>/dev/null || { echo "Core packages missing. Run: rha repair" >&2; exit 1; }
+  echo "RHA server: http://127.0.0.1:${RHA_PORT:-8000}"
+  nohup python -m uvicorn api.server:app --host 0.0.0.0 --port "${RHA_PORT:-8000}" >"$RHA_DIR/rha_service.log" 2>&1 &
+  echo $! > "$PID_FILE"
+  sleep 1
+  status_check
 }
 
-function start_server() {
-    echo "[RHA] Starting AI Server..."
-    cd "$RHA_DIR" || { echo "Project directory not found!"; exit 1; }
-    
-    # Self-validation
-    echo "Verifying core dependencies..."
-    python -c "import fastapi, uvicorn, numpy" 2>/dev/null || {
-        echo "❌ Core dependencies missing! Run 'rha-update' or 'rha-repair'."
-        exit 1
-    }
-    
-    # Check network IP
-    IP=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1)
-    if [ -z "$IP" ]; then
-        IP=$(ip addr show 2>/dev/null | grep -w inet | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
-    fi
-    
-    echo "------------------------------------------------"
-    echo " RHA SERVER ONLINE "
-    echo " Local: http://127.0.0.1:8000"
-    if [ ! -z "$IP" ]; then
-        echo " LAN:   http://$IP:8000"
-    fi
-    echo "------------------------------------------------"
-    
-    # Start the server (uvicorn)
-    python api/server.py
+stop_server() {
+  need_project
+  if pid=$(server_pid) && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then kill "$pid"; rm -f "$PID_FILE"; echo "RHA server stopped."; else echo "RHA server is not running."; fi
 }
 
-function stop_server() {
-    echo "[RHA] Stopping AI Server..."
-    pkill -f "python api/server.py"
-    echo "[RHA] Server stopped."
-}
+update_system() { need_project; cd "$RHA_DIR"; git pull --ff-only origin main; python -m pip install -r requirements-core.txt --break-system-packages || python -m pip install -r requirements-core.txt; }
+repair_system() { need_project; command -v pkg >/dev/null && pkg install -y python-numpy || true; update_system; python -m compileall -q api engine; echo "RHA repair complete."; }
+status_check() { need_project; echo "Project: $RHA_DIR"; python -c 'import fastapi; print("FastAPI: OK")' 2>/dev/null || echo "FastAPI: MISSING"; python -c 'import numpy; print("NumPy: OK")' 2>/dev/null || echo "NumPy: MISSING"; pid=$(server_pid); if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then echo "Server: ONLINE (PID $pid)"; else echo "Server: OFFLINE"; fi; }
+show_logs() { need_project; tail -n 80 "$RHA_DIR/rha_service.log" 2>/dev/null || echo "No logs found."; }
+show_models() { need_project; for f in models/stt/ggml-base.bin models/llm/qwen-1_5b-chat-q4_k_m.gguf; do [ -s "$RHA_DIR/$f" ] && echo "$f: present" || echo "$f: missing"; done; }
+run_doctor() { need_project; cd "$RHA_DIR"; python -m compileall -q api engine && echo "Python syntax: PASS" || echo "Python syntax: FAIL"; python -c 'import fastapi, uvicorn, yaml; print("Core imports: PASS")' 2>/dev/null || echo "Core imports: FAIL"; curl -fsS "http://127.0.0.1:${RHA_PORT:-8000}/self-test" 2>/dev/null || echo "Server self-test: unavailable (start with rha start)"; }
+show_help() { echo "Usage: rha {start|stop|status|update|repair|logs|models|doctor}"; }
 
-function update_system() {
-    echo "[RHA] Updating RHA System safely..."
-    cd "$RHA_DIR" || exit 1
-    git fetch
-    git pull origin main
-    pip install --upgrade pip --break-system-packages
-    pip install -r requirements-core.txt --break-system-packages
-    echo "[RHA] Update complete!"
-}
-
-function repair_system() {
-    echo "[RHA] Running self-repair..."
-    cd "$RHA_DIR" || exit 1
-    pkg install -y python-numpy
-    pip install --upgrade pip --break-system-packages
-    pip install -r requirements-core.txt --break-system-packages
-    echo "[RHA] System repaired."
-}
-
-function status_check() {
-    echo "[RHA] System Status Check"
-    cd "$RHA_DIR" || exit 1
-    python -c "import fastapi; print('FastAPI: OK')" 2>/dev/null || echo "FastAPI: MISSING"
-    python -c "import numpy; print('Numpy: OK')" 2>/dev/null || echo "Numpy: MISSING"
-    python -c "import whisper_cpp; print('Whisper: OK')" 2>/dev/null || echo "Whisper: MISSING (or using alternative)"
-    echo "Server Process:"
-    pgrep -f "python api/server.py" >/dev/null && echo "ONLINE" || echo "OFFLINE"
-}
-
-function show_logs() {
-    echo "[RHA] Fetching latest server logs..."
-    tail -n 50 "$RHA_DIR/rha_service.log" 2>/dev/null || echo "No logs found."
-}
-
-function show_models() {
-    echo "[RHA] Local Models Status"
-    echo "STT: Whisper tiny.en (Available)"
-    echo "LLM: Qwen 1.5B (Available)"
-}
-
-function run_doctor() {
-    echo "[RHA] Running Doctor Diagnostics..."
-    python -c "import fastapi" 2>/dev/null && echo "FastAPI: PASS" || echo "FastAPI: FAIL"
-    python -c "import websockets" 2>/dev/null && echo "WebSockets: PASS" || echo "WebSockets: FAIL"
-    echo "Diagnostics complete."
-}
-
-CMD_NAME=$(basename "$0")
-case "$CMD_NAME" in
-    rha-start) start_server ;;
-    rha-stop) stop_server ;;
-    rha-update) update_system ;;
-    rha-repair) repair_system ;;
-    rha-status) status_check ;;
-    rha-logs) show_logs ;;
-    rha-models) show_models ;;
-    rha-doctor) run_doctor ;;
-    *)
-        case "$1" in
-            start) start_server ;;
-            stop) stop_server ;;
-            update) update_system ;;
-            repair) repair_system ;;
-            status) status_check ;;
-            logs) show_logs ;;
-            models) show_models ;;
-            doctor) run_doctor ;;
-            *)
-                show_help
-                start_server
-                ;;
-        esac
-        ;;
-esac
+cmd="${1:-status}"
+case "$cmd" in start) start_server ;; stop) stop_server ;; update) update_system ;; repair) repair_system ;; status) status_check ;; logs) show_logs ;; models) show_models ;; doctor) run_doctor ;; *) show_help; exit 2 ;; esac

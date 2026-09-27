@@ -37,3 +37,12 @@ intents:
       english: ["battery", "charge"]
       urdu: ["بیٹری"]
       roman_urdu: ["battery", "charging"]
+
+  WEB_SEARCH:
+    keywords:
+      english: ["search", "google", "look up", "find online"]
+      urdu: ["تلاش", "گوگل", "ڈھونڈو"]
+      roman_urdu: ["search karo", "google par", "dhoondo", "talash karo"]
+    entities:
+      - name: "query"
+        required: true

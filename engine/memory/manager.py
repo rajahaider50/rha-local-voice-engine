@@ -27,6 +27,13 @@ class MemoryManager:
             print(f"[Memory] Error saving: {e}")
             return False
 
+    def save_interaction(self, user_text: str, assistant_text: str) -> bool:
+        """Persist a compact conversation pair for later local context."""
+        return self.save_fact(
+            f"User: {user_text}\nAssistant: {assistant_text}",
+            memory_type="conversation",
+        )
+
     def retrieve_relevant_context(self, query: str) -> str:
         """
         Retrieves recent memories to inject into the LLM prompt.
