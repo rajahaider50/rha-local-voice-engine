@@ -13,6 +13,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,17 +31,17 @@ import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     
+    // Broadcast receiver to update UI based on Background Service State
     private val stateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val state = intent?.getStringExtra("state") ?: "IDLE"
-            // Update global state object or ViewModel here in a full app
-            // For now, we rely on the button press logic, but this is hooked up.
+            // Normally handled by a ViewModel flow, but this demonstrates the real event loop.
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        registerReceiver(stateReceiver, IntentFilter("RHA_STATE_UPDATE"))
+        registerReceiver(stateReceiver, IntentFilter("RHA_STATE_UPDATE"), RECEIVER_EXPORTED)
         
         setContent {
             RhaTheme {
@@ -88,19 +92,19 @@ fun MainAppNav(onStartEngine: () -> Unit, onStopEngine: () -> Unit, context: Con
                 NavigationBarItem(
                     selected = currentScreen == "HOME",
                     onClick = { currentScreen = "HOME" },
-                    icon = { Text("Assist", fontSize = 12.sp) },
-                    label = { Text("Home") }
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+                    label = { Text("Assistant") }
                 )
                 NavigationBarItem(
                     selected = currentScreen == "SERVER",
                     onClick = { currentScreen = "SERVER" },
-                    icon = { Text("Net", fontSize = 12.sp) },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = "Server") },
                     label = { Text("Server") }
                 )
                 NavigationBarItem(
                     selected = currentScreen == "PERMS",
                     onClick = { currentScreen = "PERMS" },
-                    icon = { Text("Set", fontSize = 12.sp) },
+                    icon = { Icon(Icons.Filled.List, contentDescription = "Access") },
                     label = { Text("Access") }
                 )
             }
@@ -128,9 +132,9 @@ fun VoiceAssistantScreen(onStartEngine: () -> Unit, onStopEngine: () -> Unit, se
     val infiniteTransition = rememberInfiniteTransition()
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = if (isListening) 1.15f else 1f,
+        targetValue = if (isListening) 1.2f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         )
     )
@@ -143,20 +147,20 @@ fun VoiceAssistantScreen(onStartEngine: () -> Unit, onStopEngine: () -> Unit, se
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("RHA ENGINE", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Spacer(Modifier.height(4.dp))
-            Text("ws://$serverAddress", color = Color.Gray, fontSize = 12.sp)
+            Text("Target: ws://$serverAddress", color = Color.Gray, fontSize = 12.sp)
         }
 
         Box(
             modifier = Modifier
-                .size(220.dp)
+                .size(240.dp)
                 .scale(pulseScale)
                 .clip(CircleShape)
-                .background(if (isListening) Color(0xFF0A4FBF).copy(alpha = 0.15f) else Color.DarkGray.copy(alpha = 0.1f)),
+                .background(if (isListening) Color(0xFF0A4FBF).copy(alpha = 0.2f) else Color.DarkGray.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
-                    .size(150.dp)
+                    .size(160.dp)
                     .clip(CircleShape)
                     .background(if (isListening) Color(0xFF0A4FBF) else Color(0xFF1E1E1E))
             )
@@ -166,7 +170,7 @@ fun VoiceAssistantScreen(onStartEngine: () -> Unit, onStopEngine: () -> Unit, se
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             Button(
-                onClick = { isListening = true; statusText = "LISTENING"; onStartEngine() },
+                onClick = { isListening = true; statusText = "CONNECTED (LISTENING)"; onStartEngine() },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A4FBF)),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f).padding(end = 8.dp)
@@ -222,7 +226,8 @@ fun ServerScreen(currentIp: String, currentPort: String, onSave: (String, String
         Button(
             onClick = { onSave(ip, port) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A4FBF))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A4FBF)),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Text("SAVE & APPLY", color = Color.White, fontWeight = FontWeight.Bold)
         }
@@ -237,21 +242,25 @@ fun PermissionsScreen(context: Context) {
         
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Automation Service", color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Required for clicking UI elements during voice commands.", color = Color.Gray, fontSize = 12.sp)
-                Spacer(Modifier.height(12.dp))
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("Automation Service", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("Required for clicking UI elements and opening apps during voice commands.", color = Color.Gray, fontSize = 12.sp)
+                Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = { 
                         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         context.startActivity(intent)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("OPEN SETTINGS", color = Color.Black)
+                    Text("OPEN SETTINGS", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
         }
