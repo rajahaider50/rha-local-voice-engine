@@ -1,7 +1,7 @@
 # Core Server Dependencies
 fastapi>=0.100.0
 uvicorn>=0.23.0
-pydantic>=2.0.0
+pydantic>=1.10.0,<2.0.0
 python-multipart>=0.0.6
 websockets>=11.0.3
 pyyaml>=6.0
