@@ -64,7 +64,7 @@ function update_system() {
     git fetch
     git pull origin main
     if [ ! -d "venv" ]; then
-        python -m venv venv
+        python -m venv --system-site-packages venv
     fi
     source venv/bin/activate
     pip install --upgrade pip
@@ -76,7 +76,7 @@ function repair_system() {
     echo "[RHA] Running self-repair..."
     cd "$RHA_DIR" || exit 1
     rm -rf venv
-    python -m venv venv
+    python -m venv --system-site-packages venv
     source venv/bin/activate
     pip install --upgrade pip
     pip install -r requirements-core.txt

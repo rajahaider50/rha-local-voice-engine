@@ -11,24 +11,34 @@ import asyncio
 # Add project root to path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from engine.stt.whisper_engine import WhisperEngine
-from engine.language.router import LanguageRouter
-from engine.intent.router import IntentRouter
-from engine.llm.llama_engine import LlamaEngine
-from engine.memory.manager import MemoryManager
+# We will import models dynamically to prevent startup crashes if dependencies are missing
+try:
+    from engine.stt.whisper_engine import WhisperEngine
+    from engine.language.router import LanguageRouter
+    from engine.intent.router import IntentRouter
+    from engine.llm.llama_engine import LlamaEngine
+    from engine.memory.manager import MemoryManager
+    MODELS_IMPORT_SUCCESS = True
+except Exception as e:
+    print(f"[Server Warning] Could not import AI models (missing dependencies like numpy): {e}")
+    MODELS_IMPORT_SUCCESS = False
 
 app = FastAPI(title="RHA Voice Engine API")
 
 print("[Server] Loading AI Models... (This might take a moment)")
 try:
-    stt = WhisperEngine()
-    lang = LanguageRouter()
-    intent = IntentRouter()
-    llm = LlamaEngine()
-    memory = MemoryManager()
-    print("[Server] All models loaded. Server Ready!")
+    if MODELS_IMPORT_SUCCESS:
+        stt = WhisperEngine()
+        lang = LanguageRouter()
+        intent = IntentRouter()
+        llm = LlamaEngine()
+        memory = MemoryManager()
+        print("[Server] All models loaded. Server Ready!")
+    else:
+        raise Exception("Model modules were not imported.")
 except Exception as e:
     print(f"[Server Warning] Failed to load some AI models natively: {e}")
+    print("[Server] Server is running in MOCK mode until dependencies are fixed.")
     stt, lang, intent, llm, memory = None, None, None, None, None
 
 @app.get("/health")

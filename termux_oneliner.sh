@@ -35,7 +35,7 @@ fi
 echo "[2/7] Installing OS dependencies..."
 if [ -n "${PREFIX:-}" ]; then
     pkg update -y
-    pkg install -y git python clang cmake make libffi openssl pkg-config sqlite termux-api pulseaudio
+    pkg install -y git python clang cmake make libffi openssl pkg-config sqlite termux-api pulseaudio python-numpy
 fi
 
 echo "[3/7] Fetching Source Code..."
@@ -52,7 +52,7 @@ fi
 
 echo "[4/7] Setting up Python Environment..."
 if [ ! -d "venv" ]; then
-    python -m venv venv
+    python -m venv --system-site-packages venv
 fi
 source venv/bin/activate
 pip install --upgrade pip
