@@ -83,10 +83,25 @@ async def websocket_endpoint(websocket: WebSocket):
                         prompt = f"{context}\nUser: {norm}" if context else norm
                         
                         full_reply = ""
+                        sentence_buffer = ""
                         for token in llm.generate_stream(prompt):
                             full_reply += token
+                            sentence_buffer += token
                             # Stream partial text back to Android
                             await websocket.send_json({"type": "llm_token", "text": token})
+                            
+                            # Simple sentence chunking for TTS
+                            if any(punct in token for punct in [".", "?", "!", "\n", "۔"]):
+                                if sentence_buffer.strip():
+                                    await websocket.send_json({"type": "tts", "text": sentence_buffer.strip()})
+                                sentence_buffer = ""
+                        
+                        if sentence_buffer.strip():
+                            await websocket.send_json({"type": "tts", "text": sentence_buffer.strip()})
+                            
+                        # Save memory
+                        if memory:
+                            memory.save_interaction(norm, full_reply)
                     else:
                         await websocket.send_json({"type": "llm_token", "text": "LLM module offline."})
             else:

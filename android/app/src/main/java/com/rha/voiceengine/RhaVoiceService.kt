@@ -16,11 +16,15 @@ import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class RhaVoiceService : Service() {
+import android.speech.tts.TextToSpeech
+import java.util.Locale
+
+class RhaVoiceService : Service(), TextToSpeech.OnInitListener {
     
     private val CHANNEL_ID = "RhaVoiceChannel"
     private var wakeLock: PowerManager.WakeLock? = null
     private var webSocket: WebSocket? = null
+    private var tts: TextToSpeech? = null
     
     private val client = OkHttpClient.Builder()
         .pingInterval(10, TimeUnit.SECONDS)
@@ -30,18 +34,65 @@ class RhaVoiceService : Service() {
         super.onCreate()
         createNotificationChannel()
         acquireWakeLock()
+        tts = TextToSpeech(this, this)
         connectWebSocket()
     }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            tts?.language = Locale("ur", "PK") // Default to Urdu, can fallback to English
+        }
+    }
+
+    private var isRecording = false
+    private var audioRecord: android.media.AudioRecord? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = createNotification()
         startForeground(1, notification)
         
-        // Simulating Audio Recording and streaming to WebSocket
-        val dummyAudioData = ByteArray(32000)
-        webSocket?.send(dummyAudioData.toByteString())
+        startAudioRecording()
 
         return START_STICKY
+    }
+    
+    private fun startAudioRecording() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) 
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            println("Microphone permission not granted!")
+            return
+        }
+
+        val sampleRate = 16000
+        val channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO
+        val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
+        val bufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+
+        audioRecord = android.media.AudioRecord(
+            android.media.MediaRecorder.AudioSource.MIC,
+            sampleRate, channelConfig, audioFormat, bufferSize
+        )
+
+        audioRecord?.startRecording()
+        isRecording = true
+
+        Thread {
+            val audioBuffer = ByteArray(bufferSize)
+            while (isRecording) {
+                val readResult = audioRecord?.read(audioBuffer, 0, bufferSize) ?: 0
+                if (readResult > 0) {
+                    val actualData = audioBuffer.copyOfRange(0, readResult)
+                    webSocket?.send(actualData.toByteString())
+                }
+            }
+        }.start()
+    }
+
+    private fun stopAudioRecording() {
+        isRecording = false
+        audioRecord?.stop()
+        audioRecord?.release()
+        audioRecord = null
     }
     
     private fun connectWebSocket() {
@@ -65,7 +116,17 @@ class RhaVoiceService : Service() {
                         "command" -> handleCommand(json)
                         "state" -> broadcastState(json.getString("value"))
                         "transcription" -> println("Transcribed: ${json.getString("text")}")
-                        "llm_token" -> println("LLM: ${json.getString("text")}")
+                        "llm_token" -> {
+                            val msg = json.getString("text")
+                            println("LLM: $msg")
+                        }
+                        "tts" -> {
+                            val speakText = json.getString("text")
+                            tts?.speak(speakText, TextToSpeech.QUEUE_ADD, null, null)
+                        }
+                        "interrupt" -> {
+                            tts?.stop()
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -94,7 +155,17 @@ class RhaVoiceService : Service() {
                 }
             }
             "WEB_SEARCH" -> {
-                // Implement Web search intent
+                val query = json.optString("query", "")
+                if (query.isNotEmpty()) {
+                    val intent = Intent(Intent.ACTION_WEB_SEARCH)
+                    intent.putExtra(android.app.SearchManager.QUERY, query)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    try {
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        println("No browser found for web search")
+                    }
+                }
             }
         }
     }
@@ -137,6 +208,9 @@ class RhaVoiceService : Service() {
     }
 
     override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        stopAudioRecording()
         webSocket?.close(1000, "Service destroyed")
         wakeLock?.release()
         super.onDestroy()
