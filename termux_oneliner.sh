@@ -2,31 +2,37 @@
 echo "============================================="
 echo " RHA Local Voice Engine - Termux Installer   "
 echo "============================================="
-echo "Downloading the latest source code from GitHub..."
 
-# Grant storage access first
-echo "[1/4] Requesting storage permission..."
-termux-setup-storage
+# 1. System Checks
+echo "[1/6] Checking system..."
+if [ -z "$PREFIX" ]; then
+    echo "Warning: Not running in Termux! Some commands might fail."
+else
+    echo "Termux environment detected."
+    # Request storage
+    termux-setup-storage
+fi
 
-# Update and install git
-echo "[2/4] Installing dependencies..."
-pkg update -y && pkg install git python -y
+# 2. Dependencies
+echo "[2/6] Installing OS dependencies..."
+pkg update -y
+pkg install -y git python clang cmake make libffi openssl pkg-config sqlite termux-api pulseaudio
 
-# Clone repo if it doesn't exist
-if [ ! -d "rha-local-voice-engine" ]; then
-    echo "[3/4] Cloning RHA repository..."
+# 3. Clone / Update Repository (Idempotent)
+echo "[3/6] Fetching Source Code..."
+if [ ! -d "$HOME/rha-local-voice-engine" ]; then
+    cd $HOME
     git clone https://github.com/rajahaider50/rha-local-voice-engine.git
     cd rha-local-voice-engine
-    bash scripts/setup_termux.sh
 else
-    echo "[3/4] Repository already exists. Pulling latest updates..."
-    cd rha-local-voice-engine
+    echo "Repository already exists. Updating..."
+    cd $HOME/rha-local-voice-engine
     git reset --hard
     git pull origin main
 fi
 
-# Always update Python requirements just in case
-echo "[4/4] Updating Python packages (FastAPI, etc)..."
+# 4. Python Virtual Environment
+echo "[4/6] Setting up Python Environment (This may take a while)..."
 if [ ! -d "venv" ]; then
     python -m venv venv
 fi
@@ -34,10 +40,32 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# 5. Global Command Installation
+echo "[5/6] Installing global 'rha' commands..."
+if [ -n "$PREFIX" ]; then
+    cp scripts/rha_cmd.sh $PREFIX/bin/rha
+    chmod +x $PREFIX/bin/rha
+    
+    # Create symlinks for aliases
+    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-start
+    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-stop
+    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-status
+    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-update
+    ln -sf $PREFIX/bin/rha $PREFIX/bin/rha-repair
+else
+    # Fallback for standard Linux
+    sudo cp scripts/rha_cmd.sh /usr/local/bin/rha
+    sudo chmod +x /usr/local/bin/rha
+fi
+
+# 6. Final Status
 echo "============================================="
 echo " ✅ Setup Complete! "
-echo " To start the engine now, run:"
-echo "   cd rha-local-voice-engine"
-echo "   source venv/bin/activate"
-echo "   python api/server.py"
+echo " You can now start the server anytime by typing:"
+echo " "
+echo "   rha "
+echo " "
 echo "============================================="
+
+# Start immediately
+rha start
