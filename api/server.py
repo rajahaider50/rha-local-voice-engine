@@ -41,6 +41,10 @@ except Exception as e:
     print("[Server] Server is running in MOCK mode until dependencies are fixed.")
     stt, lang, intent, llm, memory = None, None, None, None, None
 
+@app.get("/")
+def read_root():
+    return {"status": "online", "message": "RHA Voice Server is actively running!", "endpoints": ["/ws/voice", "/health", "/api/models"]}
+
 @app.get("/health")
 def read_health():
     return {"status": "pass", "version": "2.1-Alpha", "engine": "RHA Local Voice Assistant"}

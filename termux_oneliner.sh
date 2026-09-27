@@ -51,22 +51,28 @@ else
 fi
 
 echo "[4/7] Setting up Python Environment..."
-if [ ! -d "venv" ]; then
-    python -m venv --system-site-packages venv
-fi
-source venv/bin/activate
-pip install --upgrade pip
+pip install --upgrade pip --break-system-packages
 
 echo "[5/7] Installing Core Packages..."
-pip install -r requirements-core.txt
+pip install -r requirements-core.txt --break-system-packages
 
 echo "[6/7] Verifying Dependencies..."
 python -c "import fastapi" || { echo "FastAPI failed to install!"; exit 1; }
 python -c "import uvicorn" || { echo "Uvicorn failed to install!"; exit 1; }
 python -c "import multipart" || { echo "python-multipart failed to install!"; exit 1; }
+python -c "import numpy" || { echo "Numpy failed to install!"; exit 1; }
 echo "Core dependencies verified successfully."
 
-echo "[7/7] Installing Global Commands..."
+echo "[7/7] Downloading AI Models..."
+mkdir -p models/stt
+if [ ! -f "models/stt/ggml-tiny.en.bin" ]; then
+    echo "Downloading Whisper Tiny (39MB)..."
+    curl -L -o models/stt/ggml-tiny.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+else
+    echo "Whisper Tiny STT model already exists."
+fi
+
+echo "[8/8] Installing Global Commands..."
 if [ -n "${PREFIX:-}" ]; then
     cp scripts/rha_cmd.sh $PREFIX/bin/rha
     chmod +x $PREFIX/bin/rha

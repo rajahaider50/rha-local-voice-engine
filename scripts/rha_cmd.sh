@@ -21,15 +21,9 @@ function start_server() {
     echo "[RHA] Starting AI Server..."
     cd "$RHA_DIR" || { echo "Project directory not found!"; exit 1; }
     
-    if [ ! -d "venv" ]; then
-        echo "❌ Virtual environment not found. Run 'rha-repair' first."
-        exit 1
-    fi
-    source venv/bin/activate
-    
     # Self-validation
     echo "Verifying core dependencies..."
-    python -c "import fastapi, uvicorn" 2>/dev/null || {
+    python -c "import fastapi, uvicorn, numpy" 2>/dev/null || {
         echo "❌ Core dependencies missing! Run 'rha-update' or 'rha-repair'."
         exit 1
     }
@@ -63,31 +57,25 @@ function update_system() {
     cd "$RHA_DIR" || exit 1
     git fetch
     git pull origin main
-    if [ ! -d "venv" ]; then
-        python -m venv --system-site-packages venv
-    fi
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements-core.txt
+    pip install --upgrade pip --break-system-packages
+    pip install -r requirements-core.txt --break-system-packages
     echo "[RHA] Update complete!"
 }
 
 function repair_system() {
     echo "[RHA] Running self-repair..."
     cd "$RHA_DIR" || exit 1
-    rm -rf venv
-    python -m venv --system-site-packages venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements-core.txt
-    echo "[RHA] Virtual environment repaired."
+    pkg install -y python-numpy
+    pip install --upgrade pip --break-system-packages
+    pip install -r requirements-core.txt --break-system-packages
+    echo "[RHA] System repaired."
 }
 
 function status_check() {
     echo "[RHA] System Status Check"
     cd "$RHA_DIR" || exit 1
-    source venv/bin/activate
     python -c "import fastapi; print('FastAPI: OK')" 2>/dev/null || echo "FastAPI: MISSING"
+    python -c "import numpy; print('Numpy: OK')" 2>/dev/null || echo "Numpy: MISSING"
     python -c "import whisper_cpp; print('Whisper: OK')" 2>/dev/null || echo "Whisper: MISSING (or using alternative)"
     echo "Server Process:"
     pgrep -f "python api/server.py" >/dev/null && echo "ONLINE" || echo "OFFLINE"
