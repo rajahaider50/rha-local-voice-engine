@@ -1,0 +1,11 @@
+# AI and Audio Dependencies
+numpy>=1.24.0
+
+# Optional / Specific AI Models
+# We install these separately based on device capability
+# torch>=2.0.0
+# torchaudio>=2.0.0
+# openwakeword>=0.5.1
+# onnxruntime>=1.15.0
+# whisper-cpp-python>=0.1.0
+# llama-cpp-python>=0.2.0

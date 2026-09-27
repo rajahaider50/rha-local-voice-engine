@@ -19,7 +19,7 @@ source venv/bin/activate
 
 # 3. Install Python dependencies
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements-core.txt
 
 echo "To install AI dependencies, check device RAM and run:"
 echo "CMAKE_ARGS=\"-DGGML_TERMUX=ON\" pip install llama-cpp-python"

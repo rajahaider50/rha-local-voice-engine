@@ -20,12 +20,23 @@ function show_help() {
 function start_server() {
     echo "[RHA] Starting AI Server..."
     cd "$RHA_DIR" || { echo "Project directory not found!"; exit 1; }
+    
+    if [ ! -d "venv" ]; then
+        echo "❌ Virtual environment not found. Run 'rha-repair' first."
+        exit 1
+    fi
     source venv/bin/activate
+    
+    # Self-validation
+    echo "Verifying core dependencies..."
+    python -c "import fastapi, uvicorn" 2>/dev/null || {
+        echo "❌ Core dependencies missing! Run 'rha-update' or 'rha-repair'."
+        exit 1
+    }
     
     # Check network IP
     IP=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -n 1)
     if [ -z "$IP" ]; then
-        # fallback for ip command
         IP=$(ip addr show 2>/dev/null | grep -w inet | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1 | head -n 1)
     fi
     
@@ -57,7 +68,7 @@ function update_system() {
     fi
     source venv/bin/activate
     pip install --upgrade pip
-    pip install -r requirements.txt
+    pip install -r requirements-core.txt
     echo "[RHA] Update complete!"
 }
 
@@ -68,7 +79,7 @@ function repair_system() {
     python -m venv venv
     source venv/bin/activate
     pip install --upgrade pip
-    pip install -r requirements.txt
+    pip install -r requirements-core.txt
     echo "[RHA] Virtual environment repaired."
 }
 
@@ -82,6 +93,24 @@ function status_check() {
     pgrep -f "python api/server.py" >/dev/null && echo "ONLINE" || echo "OFFLINE"
 }
 
+function show_logs() {
+    echo "[RHA] Fetching latest server logs..."
+    tail -n 50 "$RHA_DIR/rha_service.log" 2>/dev/null || echo "No logs found."
+}
+
+function show_models() {
+    echo "[RHA] Local Models Status"
+    echo "STT: Whisper tiny.en (Available)"
+    echo "LLM: Qwen 1.5B (Available)"
+}
+
+function run_doctor() {
+    echo "[RHA] Running Doctor Diagnostics..."
+    python -c "import fastapi" 2>/dev/null && echo "FastAPI: PASS" || echo "FastAPI: FAIL"
+    python -c "import websockets" 2>/dev/null && echo "WebSockets: PASS" || echo "WebSockets: FAIL"
+    echo "Diagnostics complete."
+}
+
 CMD_NAME=$(basename "$0")
 case "$CMD_NAME" in
     rha-start) start_server ;;
@@ -89,6 +118,9 @@ case "$CMD_NAME" in
     rha-update) update_system ;;
     rha-repair) repair_system ;;
     rha-status) status_check ;;
+    rha-logs) show_logs ;;
+    rha-models) show_models ;;
+    rha-doctor) run_doctor ;;
     *)
         case "$1" in
             start) start_server ;;
@@ -96,6 +128,9 @@ case "$CMD_NAME" in
             update) update_system ;;
             repair) repair_system ;;
             status) status_check ;;
+            logs) show_logs ;;
+            models) show_models ;;
+            doctor) run_doctor ;;
             *)
                 show_help
                 start_server

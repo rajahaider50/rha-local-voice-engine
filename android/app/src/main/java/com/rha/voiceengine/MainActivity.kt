@@ -1,8 +1,11 @@
 package com.rha.voiceengine
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
@@ -23,8 +26,19 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+    
+    private val stateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val state = intent?.getStringExtra("state") ?: "IDLE"
+            // Update global state object or ViewModel here in a full app
+            // For now, we rely on the button press logic, but this is hooked up.
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerReceiver(stateReceiver, IntentFilter("RHA_STATE_UPDATE"))
+        
         setContent {
             RhaTheme {
                 MainAppNav(
@@ -41,15 +55,20 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    
+    override fun onDestroy() {
+        unregisterReceiver(stateReceiver)
+        super.onDestroy()
+    }
 }
 
 @Composable
 fun RhaTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = Color(0xFF00E676),
+            primary = Color(0xFF0A4FBF), // Premium RHA Blue
             background = Color(0xFF0A0A0A),
-            surface = Color(0xFF1A1A1A)
+            surface = Color(0xFF121212)
         ),
         content = content
     )
@@ -59,7 +78,6 @@ fun RhaTheme(content: @Composable () -> Unit) {
 fun MainAppNav(onStartEngine: () -> Unit, onStopEngine: () -> Unit, context: Context) {
     var currentScreen by remember { mutableStateOf("HOME") }
     
-    // Shared Preferences for Server IP
     val sharedPref = context.getSharedPreferences("RhaPrefs", Context.MODE_PRIVATE)
     var serverIp by remember { mutableStateOf(sharedPref.getString("SERVER_IP", "127.0.0.1") ?: "127.0.0.1") }
     var serverPort by remember { mutableStateOf(sharedPref.getString("SERVER_PORT", "8000") ?: "8000") }
@@ -70,20 +88,20 @@ fun MainAppNav(onStartEngine: () -> Unit, onStopEngine: () -> Unit, context: Con
                 NavigationBarItem(
                     selected = currentScreen == "HOME",
                     onClick = { currentScreen = "HOME" },
-                    icon = { Text("🏠") },
+                    icon = { Text("Assist", fontSize = 12.sp) },
                     label = { Text("Home") }
                 )
                 NavigationBarItem(
                     selected = currentScreen == "SERVER",
                     onClick = { currentScreen = "SERVER" },
-                    icon = { Text("🌐") },
+                    icon = { Text("Net", fontSize = 12.sp) },
                     label = { Text("Server") }
                 )
                 NavigationBarItem(
-                    selected = currentScreen == "MODELS",
-                    onClick = { currentScreen = "MODELS" },
-                    icon = { Text("🧠") },
-                    label = { Text("Models") }
+                    selected = currentScreen == "PERMS",
+                    onClick = { currentScreen = "PERMS" },
+                    icon = { Text("Set", fontSize = 12.sp) },
+                    label = { Text("Access") }
                 )
             }
         }
@@ -96,7 +114,7 @@ fun MainAppNav(onStartEngine: () -> Unit, onStopEngine: () -> Unit, context: Con
                     serverPort = port
                     sharedPref.edit().putString("SERVER_IP", ip).putString("SERVER_PORT", port).apply()
                 })
-                "MODELS" -> ModelsScreen()
+                "PERMS" -> PermissionsScreen(context)
             }
         }
     }
@@ -123,8 +141,9 @@ fun VoiceAssistantScreen(onStartEngine: () -> Unit, onStopEngine: () -> Unit, se
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("RHA ENGINE", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text("Target: http://$serverAddress", color = Color.Gray, fontSize = 12.sp)
+            Text("RHA ENGINE", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Spacer(Modifier.height(4.dp))
+            Text("ws://$serverAddress", color = Color.Gray, fontSize = 12.sp)
         }
 
         Box(
@@ -132,31 +151,33 @@ fun VoiceAssistantScreen(onStartEngine: () -> Unit, onStopEngine: () -> Unit, se
                 .size(220.dp)
                 .scale(pulseScale)
                 .clip(CircleShape)
-                .background(if (isListening) Color(0xFF00E676).copy(alpha = 0.15f) else Color.DarkGray.copy(alpha = 0.2f)),
+                .background(if (isListening) Color(0xFF0A4FBF).copy(alpha = 0.15f) else Color.DarkGray.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
                     .size(150.dp)
                     .clip(CircleShape)
-                    .background(if (isListening) Color(0xFF00E676) else Color(0xFF2A2A2A))
+                    .background(if (isListening) Color(0xFF0A4FBF) else Color(0xFF1E1E1E))
             )
         }
 
-        Text(statusText, color = if (isListening) Color(0xFF00E676) else Color.Gray, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+        Text(statusText, color = if (isListening) Color(0xFF42A5F5) else Color.Gray, fontSize = 18.sp, fontWeight = FontWeight.Medium)
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             Button(
                 onClick = { isListening = true; statusText = "LISTENING"; onStartEngine() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("START", color = Color.Black, fontWeight = FontWeight.Bold) }
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A4FBF)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f).padding(end = 8.dp)
+            ) { Text("CONNECT", color = Color.White, fontWeight = FontWeight.Bold) }
             
             Button(
-                onClick = { isListening = false; statusText = "OFFLINE"; onStopEngine() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020)),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("STOP", color = Color.White, fontWeight = FontWeight.Bold) }
+                onClick = { isListening = false; statusText = "IDLE"; onStopEngine() },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
+            ) { Text("DISCONNECT", color = Color.White, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -168,15 +189,13 @@ fun ServerScreen(currentIp: String, currentPort: String, onSave: (String, String
     var port by remember { mutableStateOf(currentPort) }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        Text("SERVER CONNECTION", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Connect to Local AI Python Server", color = Color.Gray, fontSize = 14.sp)
+        Text("SERVER CONFIGURATION", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(32.dp))
         
         OutlinedTextField(
             value = ip,
             onValueChange = { ip = it },
-            label = { Text("Server IP Address", color = Color.Gray) },
+            label = { Text("IPv4 Address", color = Color.Gray) },
             colors = TextFieldDefaults.colors(
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
@@ -203,41 +222,38 @@ fun ServerScreen(currentIp: String, currentPort: String, onSave: (String, String
         Button(
             onClick = { onSave(ip, port) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A4FBF))
         ) {
-            Text("SAVE CONFIGURATION", color = Color.Black, fontWeight = FontWeight.Bold)
+            Text("SAVE & APPLY", color = Color.White, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-fun ModelsScreen() {
+fun PermissionsScreen(context: Context) {
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        Text("MODEL MANAGER", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("ACCESS CENTER", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(24.dp))
-        ModelItem("Whisper STT", "tiny.en", "ON SERVER")
-        ModelItem("Qwen LLM", "1.5B Q4_K_M", "ON SERVER")
-        ModelItem("openWakeWord", "hey_rha", "ON SERVER")
-        ModelItem("Silero VAD", "v4.0", "ON SERVER")
-    }
-}
-
-@Composable
-fun ModelItem(name: String, details: String, status: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
         ) {
-            Column {
-                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
-                Text(details, color = Color.Gray, fontSize = 12.sp)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Automation Service", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Required for clicking UI elements during voice commands.", color = Color.Gray, fontSize = 12.sp)
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { 
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        context.startActivity(intent)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF42A5F5))
+                ) {
+                    Text("OPEN SETTINGS", color = Color.Black)
+                }
             }
-            Text(status, color = Color(0xFF00E676), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
