@@ -30,3 +30,4 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+rha_service.log
