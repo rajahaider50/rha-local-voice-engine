@@ -31,3 +31,7 @@ Thumbs.db
 .vscode/
 *.swp
 rha_service.log
+
+sky-cores/node_modules/
+sky-cores/dist/
+sky-cores/shots/
