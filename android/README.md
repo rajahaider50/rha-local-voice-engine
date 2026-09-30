@@ -1,19 +1,36 @@
-# RHA Android Native Integration (Phases 16 & 20)
+# RHA Connect — Native Android client
 
-This directory contains the structural skeleton for the native Kotlin Android application.
+RHA Connect is a premium native Kotlin + Jetpack Compose client for Android 9–14 (API 26+). It includes:
 
-## Architecture
-Rather than running purely in Termux, the native app wraps the Python engine using **Chaquopy** (a Python SDK for Android).
+- Simple Gmail/email entry screen
+- Feed, reels/discover, chat list and chat detail surfaces
+- Audio/video call entry points and permission center
+- Voice-message recording interaction in chat
+- `@username` profile search and profile-ready UI
+- Cloudinary unsigned upload abstraction for image/video/audio assets
+- Existing RHA voice-engine foreground service retained for local assistant mode
 
-1. `RhaVoiceService.kt` runs as a Android Foreground Service with a persistent notification.
-2. It holds a `WAKE_LOCK` and keeps the microphone active via `AudioRecord`.
-3. It passes byte arrays directly to the Python `RHAEngine` running in the Chaquopy JVM bridge.
+## Build
 
-## Production Packaging (APK Build)
-To build the final APK (Phase 20):
-1. Open this `android/` directory in **Android Studio**.
-2. Sync Gradle (Chaquopy plugin will download necessary Python environments for ARM64).
-3. Place `config/`, `models/`, and `engine/` inside the `src/main/python/` assets directory (automated via gradle copy script in a full build).
-4. Build -> Build Bundle(s) / APK(s) -> Build APK.
+Open `android/` in Android Studio or use the repository workflow. GitHub Actions builds `assembleDebug` on every push to `main`.
 
-*Note: Model files (.gguf, .onnx) should be downloaded at runtime to keep the APK size under the Play Store limits.*
+```bash
+gradle assembleDebug
+```
+
+The sandbox has no Android SDK, so APK verification is performed by GitHub Actions after push.
+
+## Cloudinary
+
+Set these properties privately in `~/.gradle/gradle.properties` or CI secrets:
+
+```properties
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_UPLOAD_PRESET=your_unsigned_preset
+```
+
+`CloudinaryMediaClient` uses unsigned uploads and supports `auto` resource type for images, video and audio. Configure authenticated/server-side transformations and moderation before production.
+
+## Realtime backend boundary
+
+The UI is production-oriented and the existing WebSocket voice service remains available. Actual multi-user identity, presence, push notifications, message persistence, WebRTC media negotiation and TURN require a backend (Firebase/Supabase/custom WebSocket + TURN). No credentials were present in the repository, so the app does not invent or hard-code a provider account.
