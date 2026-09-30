@@ -35,3 +35,6 @@ rha_service.log
 sky-cores/node_modules/
 sky-cores/dist/
 sky-cores/shots/
+
+# Local CI artifacts
+artifacts/
